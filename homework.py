@@ -18,10 +18,7 @@ from config import (
 )
 from exceptions import (
     MissingTokens,
-    # SendMessageError,
     UnavailablePage,
-    # UnknownFail,
-    # StatusError
 )
 
 HOMEWORK_VERDICTS = {
@@ -43,8 +40,10 @@ def check_tokens():
     if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
         logger.debug('Переменные окружения успешно получены.')
         return True
-    logger.critical('Критическая ошибка! Отсутствуют переменные окружения! '
-                    'Программа принудиттельно остановлена')
+    logger.critical(
+        'Критическая ошибка! Отсутствуют переменные окружения! '
+        'Программа принудиттельно остановлена'
+    )
     return False
 
 
@@ -122,8 +121,10 @@ def main():
         try:
             response = get_api_answer(current_timestamp)
         except Exception:
-            logger.error('Ошибка! Эндпойнт ЯП не доступен. '
-                         'Отправляю в Телеграм сообщение об ошибке')
+            logger.error(
+                'Ошибка! Эндпойнт ЯП не доступен. '
+                'Отправляю в Телеграм сообщение об ошибке'
+            )
         try:
             response = check_response(response)
             if response:
