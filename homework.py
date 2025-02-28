@@ -105,7 +105,7 @@ def send_message(bot, message):
         bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=message
-            )
+        )
         logger.debug('Сообщение успешно отправлено')
     except Exception:
         logger.error('Ошибка! Не удалось отправить сообщение.')
