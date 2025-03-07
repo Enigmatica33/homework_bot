@@ -51,11 +51,14 @@ def get_api_answer(timestamp):
     params = {'from_date': timestamp}
     logger.info(f'Отправляем запрос к API ЯП, эндпойнт: {ENDPOINT}, '
                 'параметры: {params}')
-    request_result = requests.get(
-        ENDPOINT,
-        headers=HEADERS,
-        params=params
-    )
+    try:
+        request_result = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params=params
+        )
+    except requests.RequestException:
+        raise ConnectionError
     if request_result.status_code != HTTPStatus.OK:
         raise ConnectionError(f'Ошибка доступа к эндпойнту: {ENDPOINT}')
     logger.info('Ответ от эндпойнта получен.')
@@ -82,10 +85,10 @@ def check_response(response):
 def parse_status(homework):
     """Проверяем статус домашнего задания."""
     logger.info('Проверяем статус домашнего задания.')
-    homework_name = homework['homework_name']
-    homework_status = homework['status']
+    homework_name = homework.get('homework_name')
+    homework_status = homework.get('status')
     if not homework_name or not homework_status:
-        raise KeyError('Ошибка! В ответе API нет нужных ключей.')
+        raise KeyError('Ошибка! В ответе API нет необходимых ключей.')
     if homework_status not in HOMEWORK_VERDICTS:
         raise KeyError('Ошибка! Недокументированный статус домашней работы.')
     verdict = HOMEWORK_VERDICTS[homework_status]
@@ -100,6 +103,7 @@ def send_message(bot, message):
         chat_id=TELEGRAM_CHAT_ID,
         text=message
     )
+    logger.debug('Сообщение успешно отправлено')
 
 
 def main():
@@ -116,7 +120,7 @@ def main():
             response = get_api_answer(current_timestamp)
             homeworks = check_response(response)
             if not homeworks:
-                logging.error('Ответ API пуст: нет новых домашних работ.')
+                logging.debug('Ответ API пуст: нет новых домашних работ.')
                 continue
             status_message = parse_status(homeworks[0])
             if last_send['homework_status'] != status_message:
