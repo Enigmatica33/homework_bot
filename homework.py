@@ -24,7 +24,7 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
+PRACTICUM_TOKEN = PRACTICUM_TOKEN
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -120,7 +120,7 @@ def main():
             response = get_api_answer(current_timestamp)
             homeworks = check_response(response)
             if not homeworks:
-                logging.debug('Ответ API пуст: нет новых домашних работ.')
+                logger.debug('Ответ API пуст: нет новых домашних работ.')
                 continue
             status_message = parse_status(homeworks[0])
             if last_send['homework_status'] != status_message:
