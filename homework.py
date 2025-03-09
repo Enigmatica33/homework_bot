@@ -1,8 +1,8 @@
 """Бот-помощник."""
-from http import HTTPStatus
 import logging
 import sys
 import time
+from http import HTTPStatus
 
 import requests
 from telebot import TeleBot, telebot
@@ -17,6 +17,7 @@ from config import (
 )
 from exceptions import (
     MissingTokens,
+    WrongStatusCode
 )
 
 HOMEWORK_VERDICTS = {
@@ -38,29 +39,28 @@ def check_tokens():
     """Проверяем наличие переменных окружения."""
     logger.info('Проверяем наличие переменных окружения')
     token_list = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
-    missing_tokens = []
     missing_tokens = [token for token in token_list if not globals()[token]]
     if missing_tokens:
-        logger.critical(f'Отсутствуют переменные окружения: {missing_tokens}. '
-                        'Программа принудительно остановлена.')
-        raise MissingTokens(f'Ошибка! Отсутствуют токены: {missing_tokens}')
+        message_error = 'Отсутствуют переменные окружения: '
+        logger.critical(f'{message_error}{",".join(missing_tokens)}')
+        raise MissingTokens(f'{message_error}{",".join(missing_tokens)}')
 
 
 def get_api_answer(timestamp):
     """Получаем ответ от API Яндекс Практикум."""
     params = {'from_date': timestamp}
     logger.info(f'Отправляем запрос к API ЯП, эндпойнт: {ENDPOINT}, '
-                'параметры: {params}')
+                f'параметры: {params}')
     try:
         request_result = requests.get(
             ENDPOINT,
             headers=HEADERS,
             params=params
         )
-    except requests.RequestException:
-        raise ConnectionError
+    except requests.RequestException as e:
+        raise ConnectionError(f'Эндпойнт ЯП недоступен. {e}')
     if request_result.status_code != HTTPStatus.OK:
-        raise ConnectionError(f'Ошибка доступа к эндпойнту: {ENDPOINT}')
+        raise WrongStatusCode(f'Ошибка доступа к эндпойнту: {ENDPOINT}')
     logger.info('Ответ от эндпойнта получен.')
     return request_result.json()
 
@@ -85,12 +85,14 @@ def check_response(response):
 def parse_status(homework):
     """Проверяем статус домашнего задания."""
     logger.info('Проверяем статус домашнего задания.')
-    homework_name = homework.get('homework_name')
-    homework_status = homework.get('status')
-    if not homework_name or not homework_status:
+    expected_keys = [homework.get('homework_name'), homework.get('status')]
+    missing_keys = [key for key in expected_keys if not key]
+    if missing_keys:
         raise KeyError('Ошибка! В ответе API нет необходимых ключей.')
+    homework_name, homework_status = expected_keys
     if homework_status not in HOMEWORK_VERDICTS:
-        raise KeyError('Ошибка! Недокументированный статус домашней работы.')
+        raise ValueError('Ошибка! Недокументированный статус домашней работы. '
+                         f'{homework_status}')
     verdict = HOMEWORK_VERDICTS[homework_status]
     logger.info('Проверка завершена.')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
@@ -108,10 +110,7 @@ def send_message(bot, message):
 
 def main():
     """Основная логика работы бота."""
-    last_send = {
-        'error': None,
-        'homework_status': None
-    }
+    last_result = None
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -123,24 +122,21 @@ def main():
                 logger.debug('Ответ API пуст: нет новых домашних работ.')
                 continue
             status_message = parse_status(homeworks[0])
-            if last_send['homework_status'] != status_message:
+            if last_result != status_message:
                 logger.info('Получен новый статус домашнего задания!')
                 send_message(bot, status_message)
-                last_send['homework_status'] = status_message
-            current_timestamp = response.get('current_date')
+                last_result = status_message
+            current_timestamp = response.get('current_date', current_timestamp)
         except (
             telebot.apihelper.ApiException,
             requests.exceptions.RequestException
         ):
-            logger.error('Запрос к Telegram API был неудачным.')
+            logger.exception('Запрос к Telegram API был неудачным.')
         except Exception as error:
-            logger.error('Сбой в работе программы.')
             message = f'Сбой в работе программы: {error}'
-            if last_send['error'] != message:
-                send_message(bot, message)
-                last_send['error'] = message
-        else:
-            last_send['error'] = None
+            logger.exception(f'{message} {error}')
+            last_result = message
+            send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
 
