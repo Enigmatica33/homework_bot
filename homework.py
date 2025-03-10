@@ -116,8 +116,7 @@ def main():
     last_result = ''
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    current_timestamp = 1738368000
-    # int(time.time())
+    current_timestamp = int(time.time())
     while True:
         try:
             response = get_api_answer(current_timestamp)
