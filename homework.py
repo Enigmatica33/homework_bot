@@ -2,6 +2,7 @@
 import logging
 import sys
 import time
+from contextlib import suppress
 from http import HTTPStatus
 
 import requests
@@ -41,9 +42,10 @@ def check_tokens():
     token_list = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
     missing_tokens = [token for token in token_list if not globals()[token]]
     if missing_tokens:
-        message_error = 'Отсутствуют переменные окружения: '
-        logger.critical(f'{message_error}{",".join(missing_tokens)}')
-        raise MissingTokens(f'{message_error}{",".join(missing_tokens)}')
+        message_error = ('Отсутствуют переменные окружения: '
+                         f'{",".join(missing_tokens)}')
+        logger.critical(message_error)
+        raise MissingTokens(message_error)
 
 
 def get_api_answer(timestamp):
@@ -88,7 +90,8 @@ def parse_status(homework):
     expected_keys = [homework.get('homework_name'), homework.get('status')]
     missing_keys = [key for key in expected_keys if not key]
     if missing_keys:
-        raise KeyError('Ошибка! В ответе API нет необходимых ключей.')
+        raise KeyError('Ошибка! В ответе API нет необходимых ключей: '
+                       f'{",".join(missing_keys)}')
     homework_name, homework_status = expected_keys
     if homework_status not in HOMEWORK_VERDICTS:
         raise ValueError('Ошибка! Недокументированный статус домашней работы. '
@@ -110,10 +113,11 @@ def send_message(bot, message):
 
 def main():
     """Основная логика работы бота."""
-    last_result = None
+    last_result = ''
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
+    current_timestamp = 1738368000
+    # int(time.time())
     while True:
         try:
             response = get_api_answer(current_timestamp)
@@ -126,6 +130,8 @@ def main():
                 logger.info('Получен новый статус домашнего задания!')
                 send_message(bot, status_message)
                 last_result = status_message
+            else:
+                logger.info('Получено повторяющееся сообщение!')
             current_timestamp = response.get('current_date', current_timestamp)
         except (
             telebot.apihelper.ApiException,
@@ -136,7 +142,8 @@ def main():
             message = f'Сбой в работе программы: {error}'
             logger.exception(f'{message} {error}')
             last_result = message
-            send_message(bot, message)
+            with suppress(error):
+                send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
 
